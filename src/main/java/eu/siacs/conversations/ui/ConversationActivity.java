@@ -11,11 +11,13 @@ import android.content.DialogInterface;
 import android.content.DialogInterface.OnClickListener;
 import android.content.Intent;
 import android.content.IntentSender.SendIntentException;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.preference.PreferenceManager;
 import android.provider.MediaStore;
 import android.provider.Settings;
 import android.support.v4.widget.SlidingPaneLayout;
@@ -35,6 +37,11 @@ import android.widget.CheckBox;
 import android.widget.PopupMenu;
 import android.widget.PopupMenu.OnMenuItemClickListener;
 import android.widget.Toast;
+
+import com.kwippit.sdk.KwippitApplication;
+import com.kwippit.sdk.analytics.NullAnalyticsLogger;
+import com.kwippit.sdk.composer.ComposerFragment;
+import com.kwippit.sdk.rest.KwippitImage;
 
 import net.java.otr4j.session.SessionStatus;
 
@@ -56,6 +63,7 @@ import eu.siacs.conversations.entities.Contact;
 import eu.siacs.conversations.entities.Conversation;
 import eu.siacs.conversations.entities.Message;
 import eu.siacs.conversations.entities.Transferable;
+import eu.siacs.conversations.kwippit.GalleryHostActivity;
 import eu.siacs.conversations.persistance.FileBackend;
 import eu.siacs.conversations.services.XmppConnectionService;
 import eu.siacs.conversations.services.XmppConnectionService.OnAccountUpdate;
@@ -84,13 +92,14 @@ public class ConversationActivity extends XmppActivity
 	public static final int REQUEST_ENCRYPT_MESSAGE = 0x0207;
 	public static final int REQUEST_TRUST_KEYS_TEXT = 0x0208;
 	public static final int REQUEST_TRUST_KEYS_MENU = 0x0209;
-	public static final int REQUEST_START_DOWNLOAD = 0x0210;
+	public static final int REQUEST_START_DOWNLOAD = 0x020A;
 	public static final int ATTACHMENT_CHOICE_CHOOSE_IMAGE = 0x0301;
 	public static final int ATTACHMENT_CHOICE_TAKE_PHOTO = 0x0302;
 	public static final int ATTACHMENT_CHOICE_CHOOSE_FILE = 0x0303;
 	public static final int ATTACHMENT_CHOICE_RECORD_VOICE = 0x0304;
 	public static final int ATTACHMENT_CHOICE_LOCATION = 0x0305;
-	public static final int ATTACHMENT_CHOICE_INVALID = 0x0306;
+	public static final int ATTACHMENT_CHOICE_KWIPPIT = 0x0306;
+	public static final int ATTACHMENT_CHOICE_INVALID = 0x0307;
 	private static final String STATE_OPEN_CONVERSATION = "state_open_conversation";
 	private static final String STATE_PANEL_OPEN = "state_panel_open";
 	private static final String STATE_PENDING_URI = "state_pending_uri";
@@ -328,6 +337,21 @@ public class ConversationActivity extends XmppActivity
 				}
 			});
 		}
+
+		// initialize kwippit
+
+		NullAnalyticsLogger nullAnalyticsLogger = new NullAnalyticsLogger();
+		String apiKey = "cd9f23b6-0c15-4df5-a1f3-2f2c25fdeaba";
+		String secretKey = "28783fbc-5644-4182-a6ac-67045464197e";
+		KwippitApplication.init(getApplicationContext(), "Converstations", apiKey, secretKey, nullAnalyticsLogger);
+
+		// point to staging initially - this won't be needed for real world affiliate applications
+		SharedPreferences sp = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+		String preferredBaseUrl = sp.getString("server_list", null);
+		if (preferredBaseUrl == null)
+		{
+			sp.edit().putString("server_list", "http://staging-api.kwippit.com/v2").commit();
+		}
 	}
 
 	@Override
@@ -521,6 +545,9 @@ public class ConversationActivity extends XmppActivity
 						intent.setAction("eu.siacs.conversations.location.request");
 						fallbackPackageId = "eu.siacs.conversations.sharelocation";
 						break;
+					case ATTACHMENT_CHOICE_KWIPPIT:
+						intent = new Intent(ConversationActivity.this, GalleryHostActivity.class);
+						break;
 				}
 				if (intent.resolveActivity(getPackageManager()) != null) {
 					if (chooser) {
@@ -572,6 +599,9 @@ public class ConversationActivity extends XmppActivity
 				break;
 			case ATTACHMENT_CHOICE_CHOOSE_IMAGE:
 				getPreferences().edit().putString("recently_used_quick_action", "picture").apply();
+				break;
+			case ATTACHMENT_CHOICE_KWIPPIT:
+				getPreferences().edit().putString("recently_used_quick_action", "kwippit").apply();
 				break;
 		}
 		final Conversation conversation = getSelectedConversation();
@@ -807,6 +837,9 @@ public class ConversationActivity extends XmppActivity
 						break;
 					case R.id.attach_location:
 						attachFile(ATTACHMENT_CHOICE_LOCATION);
+						break;
+					case R.id.attach_kwippit:
+						attachFile(ATTACHMENT_CHOICE_KWIPPIT);
 						break;
 				}
 				return false;
@@ -1464,7 +1497,10 @@ public class ConversationActivity extends XmppActivity
 				} else {
 					this.mPostponedActivityResult = new Pair<>(requestCode, data);
 				}
-
+			} else if (requestCode == ATTACHMENT_CHOICE_KWIPPIT) {
+				KwippitImage kwippitImage = data.getParcelableExtra(ComposerFragment.EXTRA_KWIPPIT_IMAGE);
+				Uri uri = data.getParcelableExtra(Intent.EXTRA_STREAM);
+				attachImageToConversation(getSelectedConversation(), uri);
 			}
 		} else {
 			mPendingImageUris.clear();

@@ -6,15 +6,22 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:2.3.0'
+        classpath 'com.android.tools.build:gradle:2.3.3'
     }
 }
 
 apply plugin: 'com.android.application'
+apply plugin: 'maven'
 
 repositories {
     jcenter()
     mavenCentral()
+    maven {
+        url 'https://jitpack.io'
+        credentials {
+            username authToken
+        }
+    }
 }
 
 configurations {
@@ -41,6 +48,7 @@ dependencies {
     compile 'com.makeramen:roundedimageview:2.2.0'
     compile "com.wefika:flowlayout:0.4.1"
     compile 'net.ypresto.androidtranscoder:android-transcoder:0.2.0'
+    compile 'com.github.Kwippo:kwippit-android-sdk:0.9.1'
 }
 
 ext {
@@ -54,7 +62,7 @@ android {
     buildToolsVersion "25.0.3"
 
     defaultConfig {
-        minSdkVersion 14
+        minSdkVersion 21
         targetSdkVersion 25
         versionCode 217
         versionName "1.18.5"

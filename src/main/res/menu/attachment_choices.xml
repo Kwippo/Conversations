@@ -26,4 +26,9 @@
         android:title="@string/choose_file"
         android:icon="?attr/ic_attach_document"/>
 
+    <item
+        android:id="@+id/attach_kwippit"
+        android:title="@string/attach_kwippit"
+        android:icon="?attr/ic_attach_photo"/>
+
 </menu>
